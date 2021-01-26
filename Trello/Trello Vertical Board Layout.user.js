@@ -55,30 +55,29 @@ function setVerticalStyle() {
 }
 
 /**
- * Add blank .list-wrapper elements to allow the lists in
- * the last row to wrap properly. */
-let blank_lists_added = false;
+ * After the page has stopped changing, add some blank .list-wrapper elements
+ * to allow the lists in the last row to wrap properly. */
 function addBlankLists() {
-    if (blank_lists_added) return;
+    // Add some blank lists after the page stops changing for at least a second.
+    let timeout_id;
+    const observer = new MutationObserver(() => {
+        clearTimeout(timeout_id);
+        timeout_id = setTimeout(blankListsAdd, 1000);
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
 
-    const board = document.getElementById(`board`);
-    for (let i = 1; i <= 10; i++) {
-        const blank = document.createElement(`div`);
-        blank.classList.add(`list-wrapper`);
-        board.appendChild(blank);
+    const blankListsAdd = () => {
+        const board = document.getElementById(`board`);
+        for (let i = 1; i <= 10; i++) {
+            const blank = document.createElement(`div`);
+            blank.classList.add(`list-wrapper`);
+            board.appendChild(blank);
+        }
+        observer.disconnect();
     }
-    blank_lists_added = true;
 }
 
 window.addEventListener(`load`, () => {
     setVerticalStyle();
-
-    // Add some blank lists after the page stops changing
-    // for at least a second.
-    let timeout_id;
-    const observer = new MutationObserver(() => {
-        clearTimeout(timeout_id);
-        timeout_id = setTimeout(addBlankLists, 1000);
-    });
-    observer.observe(document.body, {childList: true, subtree: true});
+    addBlankLists();
 });
