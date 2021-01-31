@@ -4,6 +4,7 @@ Lists on a Trello board wrap instead of scrolling horizontally.
 # Trello Search Results Mod
 ## Features
 - Full width search results and other CSS tweaks.
+- Numbered results.
 - Fixed search query field remains visible in the header even when you scroll down.
 - Show, and automatically update, the search terms in the page title.
 - Show the number of cards currently displayed in the search results next to the "CARDS" header.
