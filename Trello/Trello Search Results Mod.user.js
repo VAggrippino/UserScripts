@@ -70,11 +70,16 @@ function cssTweaks() {
             position: relative;
         }
 
+        .search-result-card-hover-target {
+            left: var(--card-counter-size);
+        }
+
         .search-result-card::before {
             counter-increment: card;
             content: counter(card) '. ';
             display: block;
             width: var(--card-counter-size);
+            height: var(--card-counter-size);
             overflow: hidden;
             position: absolute;
             top: 0;
@@ -83,6 +88,21 @@ function cssTweaks() {
 
         .search-result-card-container {
             left: var(--card-counter-size);
+        }
+
+        .cover-thumbnail-link {
+            text-decoration: none;
+            position: absolute;
+            top: 2rem;
+            left: 0;
+            width: 2rem;
+            height: 2rem;
+        }
+
+        .cover-thumbnail-link img {
+            width: 2rem;
+            height: 2rem;
+            object-fit: cover;
         }
     `;
 
@@ -112,7 +132,7 @@ function titleShowSearch() {
     if (!search_box) {
         interval = setInterval(() => {
             search_box = document.querySelector(`#content .header-search-input`);
-            if (search_box !== null) {
+            if (search_box) {
                 clearInterval(interval);
                 go();
             }
@@ -157,7 +177,7 @@ function cardCount() {
             card_list = document.querySelector(`.search-results-section.js-card-results .js-list`);
             results_header_text = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header h4`);
 
-            if ((card_list !== null) && (results_header_text !== null)) {
+            if (card_list && results_header_text) {
                 clearInterval(interval);
                 go();
             }
@@ -218,7 +238,7 @@ function showAllCards() {
         let interval;
         interval = setInterval(() => {
             results_section_header = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header`);
-            if (results_section_header !== null) {
+            if (results_section_header) {
                 clearInterval(interval);
                 addElements();
             }
@@ -228,10 +248,64 @@ function showAllCards() {
     }
 }
 
+function cardCoverThumbnails() {
+    let card_list = document.querySelector(`.search-results-section.js-card-results .js-list`);
+
+    const go = () => {
+        const createThumbnails = () => {
+            const cards = card_list.querySelectorAll(`.search-result-card`);
+            cards.forEach((card) => {
+                const card_cover = card.querySelector(`.list-card-cover`);
+                if (card_cover && card_cover.classList.contains(`is-covered`)) {
+                    const background_image = card_cover.style.backgroundImage;
+                    const image_url = background_image.slice(5, -2);
+
+                    const thumbnail_link = document.createElement(`a`);
+                    thumbnail_link.classList.add(`cover-thumbnail-link`);
+                    thumbnail_link.setAttribute(`href`, image_url);
+                    thumbnail_link.setAttribute(`target`, `_blank`);
+
+                    const thumbnail = new Image();
+                    thumbnail.src = image_url;
+                    thumbnail.setAttribute(`alt`, `thumbnail`);
+
+                    thumbnail_link.appendChild(thumbnail);
+
+                    card.appendChild(thumbnail_link);
+                    card_cover.remove();
+                }
+            });
+        };
+
+        let timeout;
+        const observer = new MutationObserver(() => {
+            clearTimeout(timeout);
+            timeout = setTimeout(createThumbnails, 500);
+        });
+
+        observer.observe(card_list, {childList: true, subtree: true});
+    }
+
+    let interval;
+    if (!card_list) {
+        interval = setInterval(() => {
+            card_list = document.querySelector(`.search-results-section.js-card-results .js-list`);
+
+            if (card_list) {
+                clearInterval(interval);
+                go();
+            }
+        }, 500);
+    } else {
+        go();
+    }
+}
+
 cssTweaks();
 
 window.addEventListener(`load`, () => {
     titleShowSearch();
     cardCount();
     showAllCards();
+    cardCoverThumbnails();
 });
