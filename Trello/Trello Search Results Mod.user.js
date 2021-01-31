@@ -1,116 +1,237 @@
 // ==UserScript==
 // @name         Trello Search Results Mod
-// @namespace    http://tampermonkey.net/
+// @namespace    http://aggrippino.com
 // @version      0.1
 // @description  Minor modifications to the Trello search results page
-// @author       You
+// @author       Vince Aggrippino
 // @match        https://trello.com/search*
-// @grant        none
+// @grant        GM_addStyle
 // ==/UserScript==
 
-/**
- * CSS Tweaks
- * A style block is inserted into the stylesheet so that it
- * will take effect before the elements are actually on the
- * page.
- */
-const style = document.createElement(`style`);
-style.innerText = `
-    /* Make the results the same width as the browser window. */
-    .search-results-view {
-        max-width: 100vw;
-    }
+const title_prefix = `Trlo: `;
 
-    /* Make the header elements smaller so more fits on the screen. */
-    .body-search-page .header-search {
-        margin: 0 auto;
-    }
+/** CSS Tweaks */
+function cssTweaks() {
+    const css = `
+        /** Make the results the same width as the browser window. */
+        .search-results-view {
+            max-width: 100vw;
+        }
 
-    .body-search-page .header-search input.header-search-input {
-        margin: 0 auto;
-        height: auto;
-    }
+        /** Make the header elements smaller so more fits on the screen. */
+        .body-search-page .header-search {
+            margin: 0 auto;
+        }
 
-    .body-search-page .header-search .header-search-icon {
-        top: 0;
-    }
+        .search-results-section-header {
+            margin-bottom: 0;
+        }
 
-    .search-results-section-header {
-        margin-bottom: 0;
-    }
-`;
+        /** Search Box Size / position */
+        [data-desktop-id=header],
+        [data-desktop-id=header] > div > div {
+            height: 40px;
+            min-height: 40px !important;
+            max-height: 40px !important;
+        }
 
-document.getElementsByTagName('head')[0].appendChild(style);
+        .body-search-page .header-search {
+            width: 60vw;
+            height: 36px;
+            max-width: none;
+            position: fixed;
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .body-search-page .header-search input.header-search-input {
+            height: 36px;
+            margin: 0 auto;
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+
+        .body-search-page .header-search .header-search-icon {
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /** Card Numbers */
+        body {
+            counter-reset: card;
+            --card-counter-size: 2rem;
+        }
+
+        .search-result-card {
+            padding-left: var(--card-counter-size);
+            position: relative;
+        }
+
+        .search-result-card::before {
+            counter-increment: card;
+            content: counter(card) '. ';
+            display: block;
+            width: var(--card-counter-size);
+            overflow: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .search-result-card-container {
+            left: var(--card-counter-size);
+        }
+    `;
+
+    const style = GM_addStyle(css);
+}
 
 /**
  * titleShowSearch
  *
- * Show search terms in the page title.
- *
- * This is done with an interval because Trello doesn't
- * reload the page when changing search terms.
- */
+ * Show the current search terms in the page title. */
 function titleShowSearch() {
-    const covers = document.querySelectorAll('.list-card-cover');
-    covers.forEach(cover => { cover.style.maxHeight = 0 });
+    let search_box = document.querySelector(`#content .header-search-input`);
 
-    // Change the page title to show the search terms
-    const updateTitle = () => {
-        const search_terms = document.querySelector('.header-search-input').value;
-        document.title = `${search_terms}`;
-    };
+    const go = () => {
+        const setTitle = () => { document.title = title_prefix + search_box.value };
+        setTitle();
+        let timeout_id;
+        search_box.addEventListener(`keypress`, () => {
+            clearTimeout(timeout_id);
+            setTimeout(setTitle, 500);
+        });
+    }
 
-    // 10 seconds should be fine. You'd only need to look at
-    // the title after you've switched to another tab anyway.
-    window.setInterval(updateTitle, 10000);
+    // The page is built with JavaScript after the load event, so the needed
+    // elements may not be there yet.
+    let interval;
+    if (!search_box) {
+        interval = setInterval(() => {
+            search_box = document.querySelector(`#content .header-search-input`);
+            if (search_box !== null) {
+                clearInterval(interval);
+                go();
+            }
+        }, 500);
+    } else {
+        go();
+    }
 }
 
 /**
  * cardCount
  *
- * Prefix the results header with the number of cards returned.
- */
+ * Show the current card count in the heading of the search results. */
 function cardCount() {
-    const results_header = document.querySelector(`.search-results-section-header.u-clearfix h4`);
-    const cards = document.querySelectorAll(`.search-result-card`);
-    const card_count = document.createElement(`span`);
-    card_count.classList.add(`card_count`);
-    card_count.appendChild(document.createTextNode(cards.length));
-    results_header.innerHTML = `${card_count.outerHTML} Cards`;
+    let card_list = document.querySelector(`.search-results-section.js-card-results .js-list`);
+    let results_header_text = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header h4`);
+
+    const go = () => {
+        const card_count = document.createElement(`span`);
+        card_count.classList.add(`card_count`);
+
+        const setCount = () => {
+            const cards = card_list.querySelectorAll(`.search-result-card`);
+            card_count.innerText = `${cards.length} Cards`;
+            results_header_text.innerHTML = `${card_count.outerHTML}`;
+        }
+
+        setCount();
+
+        let timeout;
+        const observer = new MutationObserver(() => {
+            clearTimeout(timeout);
+            timeout = setTimeout(setCount, 500);
+        });
+
+        observer.observe(card_list, {childList: true, subtree: true});
+    }
+
+    let interval;
+    if (!card_list || !results_header_text) {
+        interval = setInterval(() => {
+            card_list = document.querySelector(`.search-results-section.js-card-results .js-list`);
+            results_header_text = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header h4`);
+
+            if ((card_list !== null) && (results_header_text !== null)) {
+                clearInterval(interval);
+                go();
+            }
+        }, 500);
+    } else {
+        go();
+    }
 }
 
 /**
- * callTweaks
+ * showAllCards
  *
- * Call the Trello tweak functions.
- */
-let timeout;
-function callTweaks() {
-    if (timeout) return;
+ * Repeatedly click "Show more cards..." until there aren't any more cards. */
+function showAllCards() {
+    let results_section_header = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header`);
 
-    timeout = setTimeout(() => {
-        titleShowSearch();
-        cardCount();
+    const addElements = () => {
+        // Add the button
+        const show_all_cards = document.createElement(`button`);
+        show_all_cards.appendChild(document.createTextNode(`Show All Cards`));
+        results_section_header.appendChild(show_all_cards);
 
-        timeout = undefined;
-    }, 1000);
+        // Add a loading icon
+        const spinner = document.createElement(`span`);
+        spinner.classList.add(`spinner`, `small`);
+        spinner.style.display = `none`;
+        results_section_header.appendChild(spinner);
+
+        const go = () => {
+            const show_more_cards = document.querySelector(`.js-show-more-cards`);
+            const loading_indicator = document.querySelector(`.js-loading-cards`);
+            show_all_cards.disabled = true;
+            spinner.style.display = `inline-block`;
+
+            let interval_id;
+            interval_id = setInterval(() => {
+                const show_more_cards_is_hidden = show_more_cards.classList.contains(`hide`);
+                const loading_indicator_is_hidden = loading_indicator.classList.contains(`hide`);
+                const no_more_cards = show_more_cards_is_hidden && loading_indicator_is_hidden;
+                const still_loading = show_more_cards_is_hidden && !loading_indicator_is_hidden;
+
+                if (no_more_cards) {
+                    show_all_cards.disabled = false;
+                    clearInterval(interval_id);
+                    spinner.style.display = `none`;
+                    return;
+                }
+
+                if (!still_loading) {
+                    show_more_cards.click();
+                }
+            }, 500);
+        };
+        show_all_cards.addEventListener(`click`, go);
+    }
+
+    if (!results_section_header) {
+        let interval;
+        interval = setInterval(() => {
+            results_section_header = document.querySelector(`.search-results-section:not(.hide) .search-results-section-header`);
+            if (results_section_header !== null) {
+                clearInterval(interval);
+                addElements();
+            }
+        }, 500);
+    } else {
+        addElements();
+    }
 }
 
+cssTweaks();
 
-
-window.addEventListener('load', () => {
-    callTweaks();
-    const observer_config = {
-        childList: true,
-        subtree: true,
-    };
-
-    const resultsChangeHandler = function(mutations, observer) {
-        mutations.forEach((mutation) => {
-            callTweaks();
-        });
-    };
-
-    const observer = new MutationObserver(resultsChangeHandler);
-    observer.observe(document.querySelector(`.search-results-view`), observer_config);
+window.addEventListener(`load`, () => {
+    titleShowSearch();
+    cardCount();
+    showAllCards();
 });
